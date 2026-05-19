@@ -1,18 +1,11 @@
-# 1. Ignore the raw model weights and data
 *.json
 *.csv
 sota_scania*
-
-# 2. Ignore the sub-folders we don't want to show recruiters
 model/
 scania-deployment/
-
-# 3. Ignore Jupyter scratchpads and checkpoints
 *.ipynb
 .ipynb_checkpoints/
 __pycache__/
-
-# 4. Security catch-all for any future credential files
 *.pem
 *.key
 credentials.json
