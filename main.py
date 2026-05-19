@@ -18,19 +18,18 @@ def run_daily_inference():
     bst = xgb.Booster()
     bst.load_model("/tmp/model.json")
 
-    # Grabbing today's batch from the silver layer
+    # Grabbing daily batch from the silver layer
     query = "SELECT * FROM `vehicle-fleet-prognostics.fleet_telemetry_silver.aps_failures_raw` LIMIT 1000"
     df_daily = bq_client.query(query).to_dataframe()
     df_daily['Truck_ID'] = df_daily.index 
 
     # Meta-feature engineering 
-    # The MNAR (Missing Not At Random) signal is massive here, so we capture the count of NaNs and zeros.
     features = df_daily.drop(columns=['class', 'Truck_ID'], errors='ignore').apply(pd.to_numeric, errors='coerce')
     features['META_missing_count'] = features.isnull().sum(axis=1)
     features['META_zero_count'] = (features == 0).sum(axis=1)
     features['META_sensor_std'] = features.std(axis=1)
     
-    # Dropping columns with near 100% missingness to reduce noise
+    # Dropping columns with high missingness percentage to reduce noise
     cols_to_drop = ['ab_000', 'bm_000', 'bn_000', 'bo_000', 'bp_000', 'bq_000', 'br_000', 'cr_000']
     features_cleaned = features.drop(columns=cols_to_drop, errors='ignore')
     
@@ -41,8 +40,6 @@ def run_daily_inference():
     X = pd.concat([features_cleaned, pd.DataFrame(missing_indicators)], axis=1) if missing_indicators else features_cleaned
     X = X.rename(columns=lambda x: re.sub('[^A-Za-z0-9_]+', '', str(x)))
 
-    # XGBoost throws a shape mismatch error if the daily batch is missing columns that existed in training.
-    # Force-fill any missing feature columns with 0 to align the matrices.
     expected_features = bst.feature_names
     for col in expected_features:
         if col not in X.columns:
@@ -55,7 +52,6 @@ def run_daily_inference():
     preds_logits = bst.predict(dmatrix)
     preds_risk = 1.0 / (1.0 + np.exp(-preds_logits))
 
-    # Apply the $9,490 optimized threshold derived from the cost-matrix analysis
     df_daily['Failure_Risk'] = preds_risk
     df_daily['Needs_Inspection'] = (preds_risk >= 0.0102).astype(int)
     
