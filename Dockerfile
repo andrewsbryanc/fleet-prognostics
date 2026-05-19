@@ -3,5 +3,4 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py .
-# This tells the container to run your script when it wakes up
 CMD ["python", "main.py"]
